@@ -130,18 +130,17 @@ const LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAY
 const STORAGE_KEY = "sportreg_v1_thuduc";
 const ADMIN_CODE = "TOGDTC-50NAM";
 
-<script>
+// ==== Google Sheets qua Apps Script (thay cho window.storage của Claude) ====
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwi0X7jMxbJkvmhRzVAk4Dc8AuNOgSJrkmq_Ecz10OhD35V0wV8dExr1ex3EDPJIX-F/exec";
 const SHEETS_TOKEN = "TOGDTC-50NAM"; // phải giống hệt SECRET_TOKEN trong Code.gs
 
-// Shim thay thế window.storage của Claude bằng Google Sheets qua Apps Script
 window.storage = {
   async get(key, shared) {
     const res = await fetch(APPS_SCRIPT_URL, { method: "GET" });
     if (!res.ok) throw new Error("Không đọc được dữ liệu (HTTP " + res.status + ")");
     const text = await res.text();
     if (!text || text === "{}" || text === "null") {
-      throw new Error("Chưa có dữ liệu"); // giữ hành vi giống window.storage gốc: ném lỗi khi chưa có key
+      throw new Error("Chưa có dữ liệu");
     }
     return { key, value: text, shared: !!shared };
   },
@@ -149,7 +148,7 @@ window.storage = {
     const url = APPS_SCRIPT_URL + "?token=" + encodeURIComponent(SHEETS_TOKEN);
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" }, // QUAN TRỌNG: dùng text/plain để tránh lỗi CORS
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: value,
     });
     if (!res.ok) throw new Error("Không lưu được dữ liệu (HTTP " + res.status + ")");
@@ -158,7 +157,8 @@ window.storage = {
     return { key, value, shared: !!shared };
   },
 };
-</script>
+// ==== Hết phần Google Sheets ====
+
 // Hạn chót đăng ký: hết ngày 14/09/2026 (23:59, giờ Việt Nam)
 const REG_DEADLINE = new Date("2026-09-14T23:59:59+07:00");
 function isPastDeadline(){ return Date.now() > REG_DEADLINE.getTime(); }
