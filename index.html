@@ -78,8 +78,6 @@
   h3{font-size:14.5px;margin:0 0 10px;color:var(--navy-dark);}
   .muted-line{font-size:12.5px;color:var(--text-muted);margin:0 0 16px;}
   .badge{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;}
-  .badge.gd1{background:#E6F0FA;color:var(--navy);}
-  .badge.gd2{background:#F5E9F7;color:#6A2C91;}
   .badge.pending{background:var(--amber-bg);color:var(--amber);}
   .badge.approved{background:var(--green-bg);color:var(--green);}
   .badge.rejected{background:var(--red-bg);color:var(--red);}
@@ -168,40 +166,34 @@ function deadlineText(){
 
 // Danh sách nội dung thi đấu (mỗi môn chia thành nhiều nội dung đăng ký riêng)
 const NOIDUNG = [
-  { id:"cl_don_nam",   monGroup:"Cầu lông", ten:"Đơn nam", gd:1, maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nam." },
-  { id:"cl_don_nu",    monGroup:"Cầu lông", ten:"Đơn nữ", gd:1, maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nữ." },
-  { id:"cl_doi_nam",   monGroup:"Cầu lông", ten:"Đôi nam", gd:1, maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi, ví dụ mỗi 2 dòng liên tiếp là một đôi." },
-  { id:"cl_doi_nu",    monGroup:"Cầu lông", ten:"Đôi nữ", gd:1, maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi, ví dụ mỗi 2 dòng liên tiếp là một đôi." },
+  { id:"cl_don_nam",   monGroup:"Cầu lông", ten:"Đơn nam", maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nam." },
+  { id:"cl_don_nu",    monGroup:"Cầu lông", ten:"Đơn nữ", maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nữ." },
 
-  { id:"cv_canhan_nam", monGroup:"Cờ vua - Cờ tướng", ten:"Cờ vua - Cá nhân nam", gd:1, maxNguoi:null, exact:false, note:"" },
-  { id:"cv_canhan_nu",  monGroup:"Cờ vua - Cờ tướng", ten:"Cờ vua - Cá nhân nữ", gd:1, maxNguoi:null, exact:false, note:"" },
-  { id:"ct_canhan_nam", monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nam", gd:1, maxNguoi:null, exact:false, note:"" },
-  { id:"ct_canhan_nu",  monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nữ", gd:1, maxNguoi:null, exact:false, note:"" },
+  { id:"cv_canhan_nam", monGroup:"Cờ vua - Cờ tướng", ten:"Cờ vua - Cá nhân nam", maxNguoi:null, exact:false, note:"" },
+  { id:"cv_canhan_nu",  monGroup:"Cờ vua - Cờ tướng", ten:"Cờ vua - Cá nhân nữ", maxNguoi:null, exact:false, note:"" },
+  { id:"ct_canhan_nam", monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nam", maxNguoi:null, exact:false, note:"" },
+  { id:"ct_canhan_nu",  monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nữ", maxNguoi:null, exact:false, note:"" },
 
-  { id:"bd_doi_nam", monGroup:"Bóng đá", ten:"Đội nam", gd:1, maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
-  { id:"bd_doi_nu",  monGroup:"Bóng đá", ten:"Đội nữ", gd:1, maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bd_doi_nam", monGroup:"Bóng đá", ten:"Đội nam", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bd_doi_nu",  monGroup:"Bóng đá", ten:"Đội nữ", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
 
-  { id:"kc_honhop", monGroup:"Kéo co", ten:"Đồng đội hỗn hợp", gd:1, maxNguoi:10, exact:true, note:"Đăng ký 5 nam - 5 nữ (ghi rõ (Nam)/(Nữ) sau mỗi tên)." },
+  { id:"kc_honhop", monGroup:"Kéo co", ten:"Đồng đội hỗn hợp", maxNguoi:10, exact:true, note:"Đăng ký 5 nam - 5 nữ (ghi rõ (Nam)/(Nữ) sau mỗi tên)." },
 
-  { id:"dc_don_nam", monGroup:"Đá cầu", ten:"Đơn nam", gd:2, maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nam." },
-  { id:"dc_don_nu",  monGroup:"Đá cầu", ten:"Đơn nữ", gd:2, maxNguoi:null, exact:false, note:"Ghi tên từng vận động viên tham gia nội dung đơn nữ." },
-  { id:"dc_doi_nam", monGroup:"Đá cầu", ten:"Đôi nam", gd:2, maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
-  { id:"dc_doi_nu",  monGroup:"Đá cầu", ten:"Đôi nữ", gd:2, maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
+  { id:"dc_doi_nam", monGroup:"Đá cầu", ten:"Đôi nam", maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
+  { id:"dc_doi_nu",  monGroup:"Đá cầu", ten:"Đôi nữ", maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
 
-  { id:"bc_doi_nam", monGroup:"Bóng chuyền", ten:"Đồng đội nam", gd:2, maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
-  { id:"bc_doi_nu",  monGroup:"Bóng chuyền", ten:"Đồng đội nữ", gd:2, maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bc_doi_nam", monGroup:"Bóng chuyền", ten:"Đồng đội nam", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bc_doi_nu",  monGroup:"Bóng chuyền", ten:"Đồng đội nữ", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
 
-  { id:"br_nam_3x3", monGroup:"Bóng rổ", ten:"Đồng đội nam - 3x3", gd:2, maxNguoi:6, exact:false, note:"Tối đa 6 người." },
-  { id:"br_nam_5x5", monGroup:"Bóng rổ", ten:"Đồng đội nam - 5x5", gd:2, maxNguoi:10, exact:false, note:"Tối đa 10 người." },
-  { id:"br_nu_3x3",  monGroup:"Bóng rổ", ten:"Đồng đội nữ - 3x3", gd:2, maxNguoi:6, exact:false, note:"Tối đa 6 người." },
-  { id:"br_nu_5x5",  monGroup:"Bóng rổ", ten:"Đồng đội nữ - 5x5", gd:2, maxNguoi:10, exact:false, note:"Tối đa 10 người." },
+  { id:"br_nam_5x5", monGroup:"Bóng rổ", ten:"Đồng đội nam - 5x5", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
+  { id:"br_nu_5x5",  monGroup:"Bóng rổ", ten:"Đồng đội nữ - 5x5", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
 ];
 
 function ndInfo(id){ return NOIDUNG.find(x=>x.id===id); }
 function ndGroups(){
   const order = [];
   NOIDUNG.forEach(n=>{ if(!order.includes(n.monGroup)) order.push(n.monGroup); });
-  return order.map(g=>({ monGroup:g, items: NOIDUNG.filter(n=>n.monGroup===g), gd: NOIDUNG.find(n=>n.monGroup===g).gd }));
+  return order.map(g=>({ monGroup:g, items: NOIDUNG.filter(n=>n.monGroup===g) }));
 }
 
 const INITIAL_CLASSES = [
@@ -269,7 +261,6 @@ let formErr = "";
 let toast = null;
 
 function monName(id){ const n = ndInfo(id); return n ? (n.monGroup + " - " + n.ten) : id; }
-function monGd(id){ const n = ndInfo(id); return n ? n.gd : 1; }
 function statusLabel(s){ return s==="approved" ? "Đã duyệt" : s==="rejected" ? "Đã từ chối" : "Chờ GVCN duyệt"; }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -397,7 +388,6 @@ function renderMonitorForm(){
     }).join("");
     return `<div class="group-heading">
         <span class="gname">${esc(g.monGroup)}</span>
-        <span class="badge ${g.gd===1?'gd1':'gd2'}">Giai đoạn ${g.gd}</span>
       </div>${items}`;
   }).join("");
 
@@ -429,7 +419,7 @@ function renderMonForm(monId){
   const n = ndInfo(monId);
   return `
   <div class="card" id="mon-form-card">
-    <h3>Đăng ký: ${esc(n.monGroup)} - ${esc(n.ten)} <span class="badge ${n.gd===1?'gd1':'gd2'}">Giai đoạn ${n.gd}</span></h3>
+    <h3>Đăng ký: ${esc(n.monGroup)} - ${esc(n.ten)}</h3>
     ${n.maxNguoi ? `<p class="hint">${n.exact ? "Số lượng đăng ký: đúng " + n.maxNguoi + " người." : "Số lượng đăng ký: tối đa " + n.maxNguoi + " người."} ${n.note || ""}</p>` : (n.note ? `<p class="hint">${esc(n.note)}</p>` : "")}
     <label for="mn-vdv">Danh sách vận động viên (mỗi người một dòng, ghi rõ họ tên)</label>
     <textarea id="mn-vdv" placeholder="Nguyễn Văn A&#10;Trần Thị B"></textarea>
@@ -470,7 +460,7 @@ function renderGvcnPanel(){
   const pendingHtml = pending.length ? pending.map(r=>`
     <div class="reg-item">
       <div class="reg-head">
-        <div class="mname">${esc(monName(r.mon))} <span class="badge ${r.gd===1?'gd1':'gd2'}" style="margin-left:6px;">GĐ${monGd(r.mon)}</span></div>
+        <div class="mname">${esc(monName(r.mon))}</div>
         <span class="badge pending">${statusLabel(r.status)}</span>
       </div>
       <div class="vdv-list">${esc(r.vdvList)}</div>
@@ -538,10 +528,9 @@ function renderAdminPanel(){
     <tr>
       <td>${esc(r.className)}</td>
       <td>${esc(monName(r.mon))}</td>
-      <td>GĐ${monGd(r.mon)}</td>
       <td><span class="badge ${r.status}">${statusLabel(r.status)}</span></td>
       <td class="meta">${new Date(r.submittedAt).toLocaleDateString("vi-VN")}</td>
-    </tr>`).join("") : `<tr><td colspan="5" class="empty">Chưa có đăng ký nào.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="4" class="empty">Chưa có đăng ký nào.</td></tr>`;
 
   return `
   <button class="back" data-action="home">&larr; Quay lại</button>
@@ -576,7 +565,7 @@ function renderAdminPanel(){
       <button class="btn small secondary" data-action="export-csv">Xuất Excel/CSV</button>
     </div>
     <table>
-      <tr><th>Lớp</th><th>Môn</th><th>GĐ</th><th>Trạng thái</th><th>Ngày nộp</th></tr>
+      <tr><th>Lớp</th><th>Môn</th><th>Trạng thái</th><th>Ngày nộp</th></tr>
       ${regRows}
     </table>
   </div>`;
@@ -701,7 +690,7 @@ async function onAction(e){
   }
 
   if(action==="export-csv"){
-    const rows = [["Khối","Lớp","Môn","Nội dung","Giai đoạn","Trạng thái","Số VĐV","Danh sách vận động viên","Người nộp","Ngày nộp","Ngày GVCN xử lý","Ghi chú GVCN"]];
+    const rows = [["Khối","Lớp","Môn","Nội dung","Trạng thái","Số VĐV","Danh sách vận động viên","Người nộp","Ngày nộp","Ngày GVCN xử lý","Ghi chú GVCN"]];
     DATA.classes.forEach(c=>{
       const khoi = (c.name.match(/^\d+/) || ["?"])[0];
       (DATA.registrations[c.id]||[]).forEach(r=>{
@@ -709,7 +698,7 @@ async function onAction(e){
         const count = r.vdvList.split("\n").map(s=>s.trim()).filter(Boolean).length;
         rows.push([
           "Khối " + khoi, c.name, n ? n.monGroup : "", n ? n.ten : "",
-          "Giai đoạn " + (n?n.gd:""), statusLabel(r.status), String(count),
+          statusLabel(r.status), String(count),
           r.vdvList.replace(/\n/g,"; "), r.submittedBy || "",
           new Date(r.submittedAt).toLocaleString("vi-VN"),
           r.decidedAt ? new Date(r.decidedAt).toLocaleString("vi-VN") : "",
