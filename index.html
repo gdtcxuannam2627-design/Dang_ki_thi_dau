@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <title>Đăng ký thi đấu - Hội thi TDTT THPT Thủ Đức</title>
 <style>
   :root{
@@ -562,7 +563,7 @@ function renderAdminPanel(){
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
       <h3 style="margin:0;">Toàn bộ đăng ký</h3>
-      <button class="btn small secondary" data-action="export-csv">Xuất Excel/CSV</button>
+      <button class="btn small secondary" data-action="export-xlsx">Xuất Excel (.xlsx)</button>
     </div>
     <table>
       <tr><th>Lớp</th><th>Môn</th><th>Trạng thái</th><th>Ngày nộp</th></tr>
@@ -689,7 +690,12 @@ async function onAction(e){
     return;
   }
 
-  if(action==="export-csv"){
+  if(action==="export-xlsx"){
+    if(typeof XLSX === "undefined"){
+      toast = { type:"error", text:"Chưa tải được thư viện xuất Excel (cần có mạng), vui lòng thử lại sau ít giây." };
+      render();
+      return;
+    }
     const rows = [["Khối","Lớp","Môn","Nội dung","Trạng thái","Số VĐV","Danh sách vận động viên","Người nộp","Ngày nộp","Ngày GVCN xử lý","Ghi chú GVCN"]];
     DATA.classes.forEach(c=>{
       const khoi = (c.name.match(/^\d+/) || ["?"])[0];
@@ -698,7 +704,7 @@ async function onAction(e){
         const count = r.vdvList.split("\n").map(s=>s.trim()).filter(Boolean).length;
         rows.push([
           "Khối " + khoi, c.name, n ? n.monGroup : "", n ? n.ten : "",
-          statusLabel(r.status), String(count),
+          statusLabel(r.status), count,
           r.vdvList.replace(/\n/g,"; "), r.submittedBy || "",
           new Date(r.submittedAt).toLocaleString("vi-VN"),
           r.decidedAt ? new Date(r.decidedAt).toLocaleString("vi-VN") : "",
@@ -706,15 +712,15 @@ async function onAction(e){
         ]);
       });
     });
-    const csvEscape = v => { const s = String(v).replace(/"/g,'""'); return /[",\n;]/.test(s) ? '"'+s+'"' : s; };
-    const csv = "\uFEFF" + rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "TongHopDangKy_HoiThiTDTT_ThuDuc.csv";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast = { type:"ok", text:"Đã xuất file CSV. Mở bằng Excel để xem và chỉnh sửa." };
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 9 }, { wch: 8 }, { wch: 15 }, { wch: 24 }, { wch: 15 },
+      { wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 26 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Dang ky");
+    XLSX.writeFile(wb, "TongHopDangKy_HoiThiTDTT_ThuDuc.xlsx");
+    toast = { type:"ok", text:"Đã xuất file Excel (.xlsx) — mở giống nhau trên cả Excel và Numbers." };
     render();
     return;
   }
