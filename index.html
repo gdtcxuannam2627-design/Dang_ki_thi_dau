@@ -277,7 +277,41 @@ async function loadData(){
   render();
 }
 
+// Tải lại dữ liệu mới nhất từ server (không khởi tạo lại nếu lỗi, giữ nguyên DATA hiện có)
+async function refreshData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    DATA = JSON.parse(res.value);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
 async function saveData(){
+  try{
+    const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
+    if(!res) throw new Error("no result");
+    return true;
+  }catch(e){
+    toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
+    return false;
+  }
+}
+
+// QUAN TRỌNG: luôn tải dữ liệu MỚI NHẤT từ server ngay trước khi ghi, áp thay đổi
+// (mutatorFn) vào đúng bản mới nhất đó rồi mới lưu — tránh việc một tab/phiên cũ
+// ghi đè và xóa mất dữ liệu người khác vừa thêm vào trong lúc đó.
+async function mutateAndSave(mutatorFn){
+  let fresh;
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    fresh = JSON.parse(res.value);
+  }catch(e){
+    fresh = DATA; // hiếm khi xảy ra (ví dụ lần ghi đầu tiên) — dùng tạm dữ liệu hiện có
+  }
+  mutatorFn(fresh);
+  DATA = fresh;
   try{
     const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
     if(!res) throw new Error("no result");
@@ -595,6 +629,7 @@ async function onAction(e){
     const cls = DATA.classes.find(c=>c.id===classId);
     if(!code){ formErr = "Vui lòng nhập mã đăng ký."; render(); return; }
     if(!cls || cls.regCode !== code){ formErr = "Mã đăng ký không đúng cho lớp đã chọn."; render(); return; }
+    await refreshData(); // luôn xem lịch sử đăng ký mới nhất
     session = { classId }; view = "monitor-form"; render(); return;
   }
 
@@ -633,10 +668,11 @@ async function onAction(e){
       id: uid(), mon: monId, vdvList: vdv, submittedBy: submitter,
       submittedAt: Date.now(), status: "pending", gvcnNote: ""
     };
-    if(!DATA.registrations[session.classId]) DATA.registrations[session.classId] = [];
-    DATA.registrations[session.classId].push(entry);
     el.disabled = true; el.textContent = "Đang lưu...";
-    const ok = await saveData();
+    const ok = await mutateAndSave(fresh => {
+      if(!fresh.registrations[session.classId]) fresh.registrations[session.classId] = [];
+      fresh.registrations[session.classId].push(entry);
+    });
     if(ok){ toast = { type:"ok", text:"Đã nộp đăng ký. Đang chờ GVCN duyệt." }; }
     render();
     return;
@@ -648,23 +684,26 @@ async function onAction(e){
     const cls = DATA.classes.find(c=>c.id===classId);
     if(!code){ formErr = "Vui lòng nhập mã duyệt."; render(); return; }
     if(!cls || cls.approveCode !== code){ formErr = "Mã duyệt không đúng cho lớp đã chọn."; render(); return; }
+    await refreshData(); // luôn xem danh sách chờ duyệt mới nhất
     session = { classId }; view = "gvcn-panel"; render(); return;
   }
 
   if(action==="approve" || action==="reject"){
     const regId = el.getAttribute("data-reg");
-    const list = DATA.registrations[session.classId] || [];
-    const reg = list.find(r=>r.id===regId);
-    if(reg){
-      reg.status = action==="approve" ? "approved" : "rejected";
-      reg.decidedAt = Date.now();
-      if(action==="reject"){
-        const note = prompt("Ghi chú lý do từ chối (có thể để trống):") || "";
-        reg.gvcnNote = note;
-      }
+    let noteToSave = "";
+    if(action==="reject"){
+      noteToSave = prompt("Ghi chú lý do từ chối (có thể để trống):") || "";
     }
     el.disabled = true;
-    const ok = await saveData();
+    const ok = await mutateAndSave(fresh => {
+      const list = fresh.registrations[session.classId] || [];
+      const reg = list.find(r=>r.id===regId);
+      if(reg){
+        reg.status = action==="approve" ? "approved" : "rejected";
+        reg.decidedAt = Date.now();
+        if(action==="reject") reg.gvcnNote = noteToSave;
+      }
+    });
     if(ok){ toast = { type:"ok", text: action==="approve" ? "Đã duyệt đăng ký." : "Đã từ chối đăng ký." }; }
     render();
     return;
@@ -673,6 +712,7 @@ async function onAction(e){
   if(action==="admin-auth"){
     const code = document.getElementById("ad-code").value.trim();
     if(code !== ADMIN_CODE){ formErr = "Mã quản trị không đúng."; render(); return; }
+    await refreshData(); // luôn xem toàn bộ đăng ký mới nhất
     view = "admin-panel"; render(); return;
   }
 
@@ -683,8 +723,11 @@ async function onAction(e){
     if(!name || !reg || !approve){ formErr = "Vui lòng nhập đủ tên lớp, mã đăng ký và mã duyệt."; render(); return; }
     if(reg === approve){ formErr = "Mã đăng ký và mã duyệt phải khác nhau."; render(); return; }
     if(DATA.classes.some(c=>c.name.toLowerCase()===name.toLowerCase())){ formErr = "Lớp này đã tồn tại."; render(); return; }
-    DATA.classes.push({ id: uid(), name, regCode: reg, approveCode: approve });
-    const ok = await saveData();
+    const newClass = { id: uid(), name, regCode: reg, approveCode: approve };
+    const ok = await mutateAndSave(fresh => {
+      if(fresh.classes.some(c=>c.name.toLowerCase()===name.toLowerCase())) return; // tránh trùng nếu vừa có người khác thêm
+      fresh.classes.push(newClass);
+    });
     if(ok){ toast = { type:"ok", text:"Đã thêm lớp " + name + "." }; }
     render();
     return;
@@ -696,6 +739,7 @@ async function onAction(e){
       render();
       return;
     }
+    await refreshData(); // đảm bảo xuất đúng dữ liệu mới nhất
     const rows = [["Khối","Lớp","Môn","Nội dung","Trạng thái","Số VĐV","Danh sách vận động viên","Người nộp","Ngày nộp","Ngày GVCN xử lý","Ghi chú GVCN"]];
     DATA.classes.forEach(c=>{
       const khoi = (c.name.match(/^\d+/) || ["?"])[0];
@@ -729,9 +773,10 @@ async function onAction(e){
     const id = el.getAttribute("data-id");
     const cls = DATA.classes.find(c=>c.id===id);
     if(cls && confirm("Xóa lớp " + cls.name + "? Toàn bộ đăng ký của lớp cũng sẽ bị xóa.")){
-      DATA.classes = DATA.classes.filter(c=>c.id!==id);
-      delete DATA.registrations[id];
-      const ok = await saveData();
+      const ok = await mutateAndSave(fresh => {
+        fresh.classes = fresh.classes.filter(c=>c.id!==id);
+        delete fresh.registrations[id];
+      });
       if(ok){ toast = { type:"ok", text:"Đã xóa lớp " + cls.name + "." }; }
       render();
     }
