@@ -156,7 +156,24 @@ window.storage = {
     return { key, value, shared: !!shared };
   },
 };
+
+// QUAN TRỌNG: gọi 1 hành động cụ thể lên Apps Script (submit_reg, decide_reg, add_class, del_class).
+// Việc đọc - sửa - ghi được thực hiện HOÀN TOÀN ở phía máy chủ, có khóa (LockService) nên
+// không bao giờ bị 2 yêu cầu ghi đè lẫn nhau, dù nhiều người thao tác cùng lúc.
+async function callServerAction(action, payload) {
+  const url = APPS_SCRIPT_URL + "?token=" + encodeURIComponent(SHEETS_TOKEN);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ action: action }, payload)),
+  });
+  if (!res.ok) throw new Error("Không lưu được dữ liệu (HTTP " + res.status + ")");
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Không lưu được dữ liệu");
+  return data;
+}
 // ==== Hết phần Google Sheets ====
+
 
 // Hạn chót đăng ký: hết ngày 14/09/2026 (23:59, giờ Việt Nam)
 const REG_DEADLINE = new Date("2026-09-16T23:59:59+07:00");
@@ -175,16 +192,16 @@ const NOIDUNG = [
   { id:"ct_canhan_nam", monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nam", maxNguoi:null, exact:false, note:"" },
   { id:"ct_canhan_nu",  monGroup:"Cờ vua - Cờ tướng", ten:"Cờ tướng - Cá nhân nữ", maxNguoi:null, exact:false, note:"" },
 
-  { id:"bd_doi_nam", monGroup:"Bóng đá", ten:"Đội nam", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
-  { id:"bd_doi_nu",  monGroup:"Bóng đá", ten:"Đội nữ", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bd_doi_nam", monGroup:"Bóng đá", ten:"Đội nam", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
+  { id:"bd_doi_nu",  monGroup:"Bóng đá", ten:"Đội nữ", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
 
   { id:"kc_honhop", monGroup:"Kéo co", ten:"Đồng đội hỗn hợp", maxNguoi:10, exact:true, note:"Đăng ký 5 nam - 5 nữ (ghi rõ (Nam)/(Nữ) sau mỗi tên)." },
 
   { id:"dc_doi_nam", monGroup:"Đá cầu", ten:"Đôi nam", maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
   { id:"dc_doi_nu",  monGroup:"Đá cầu", ten:"Đôi nữ", maxNguoi:null, exact:false, note:"Ghi tên VĐV theo từng cặp đôi." },
 
-  { id:"bc_doi_nam", monGroup:"Bóng chuyền", ten:"Đồng đội nam", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
-  { id:"bc_doi_nu",  monGroup:"Bóng chuyền", ten:"Đồng đội nữ", maxNguoi:10, exact:true, note:"Đăng ký đúng 10 người." },
+  { id:"bc_doi_nam", monGroup:"Bóng chuyền", ten:"Đồng đội nam", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
+  { id:"bc_doi_nu",  monGroup:"Bóng chuyền", ten:"Đồng đội nữ", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
 
   { id:"br_nam_5x5", monGroup:"Bóng rổ", ten:"Đồng đội nam - 5x5", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
   { id:"br_nu_5x5",  monGroup:"Bóng rổ", ten:"Đồng đội nữ - 5x5", maxNguoi:10, exact:false, note:"Tối đa 10 người." },
@@ -289,29 +306,6 @@ async function refreshData(){
 }
 
 async function saveData(){
-  try{
-    const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
-    if(!res) throw new Error("no result");
-    return true;
-  }catch(e){
-    toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
-    return false;
-  }
-}
-
-// QUAN TRỌNG: luôn tải dữ liệu MỚI NHẤT từ server ngay trước khi ghi, áp thay đổi
-// (mutatorFn) vào đúng bản mới nhất đó rồi mới lưu — tránh việc một tab/phiên cũ
-// ghi đè và xóa mất dữ liệu người khác vừa thêm vào trong lúc đó.
-async function mutateAndSave(mutatorFn){
-  let fresh;
-  try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    fresh = JSON.parse(res.value);
-  }catch(e){
-    fresh = DATA; // hiếm khi xảy ra (ví dụ lần ghi đầu tiên) — dùng tạm dữ liệu hiện có
-  }
-  mutatorFn(fresh);
-  DATA = fresh;
   try{
     const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
     if(!res) throw new Error("no result");
@@ -664,16 +658,14 @@ async function onAction(e){
       if(n.exact && lines.length !== n.maxNguoi){ formErr = "Nội dung này yêu cầu đăng ký đúng " + n.maxNguoi + " người (hiện có " + lines.length + " dòng)."; rerenderMonForm(); return; }
       if(!n.exact && lines.length > n.maxNguoi){ formErr = "Nội dung này chỉ được đăng ký tối đa " + n.maxNguoi + " người (hiện có " + lines.length + " dòng)."; rerenderMonForm(); return; }
     }
-    const entry = {
-      id: uid(), mon: monId, vdvList: vdv, submittedBy: submitter,
-      submittedAt: Date.now(), status: "pending", gvcnNote: ""
-    };
     el.disabled = true; el.textContent = "Đang lưu...";
-    const ok = await mutateAndSave(fresh => {
-      if(!fresh.registrations[session.classId]) fresh.registrations[session.classId] = [];
-      fresh.registrations[session.classId].push(entry);
-    });
-    if(ok){ toast = { type:"ok", text:"Đã nộp đăng ký. Đang chờ GVCN duyệt." }; }
+    try{
+      await callServerAction("submit_reg", { classId: session.classId, mon: monId, vdvList: vdv, submittedBy: submitter });
+      await refreshData();
+      toast = { type:"ok", text:"Đã nộp đăng ký. Đang chờ GVCN duyệt." };
+    }catch(err){
+      toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
+    }
     render();
     return;
   }
@@ -695,16 +687,13 @@ async function onAction(e){
       noteToSave = prompt("Ghi chú lý do từ chối (có thể để trống):") || "";
     }
     el.disabled = true;
-    const ok = await mutateAndSave(fresh => {
-      const list = fresh.registrations[session.classId] || [];
-      const reg = list.find(r=>r.id===regId);
-      if(reg){
-        reg.status = action==="approve" ? "approved" : "rejected";
-        reg.decidedAt = Date.now();
-        if(action==="reject") reg.gvcnNote = noteToSave;
-      }
-    });
-    if(ok){ toast = { type:"ok", text: action==="approve" ? "Đã duyệt đăng ký." : "Đã từ chối đăng ký." }; }
+    try{
+      await callServerAction("decide_reg", { classId: session.classId, regId: regId, decision: action==="approve"?"approved":"rejected", note: noteToSave });
+      await refreshData();
+      toast = { type:"ok", text: action==="approve" ? "Đã duyệt đăng ký." : "Đã từ chối đăng ký." };
+    }catch(err){
+      toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
+    }
     render();
     return;
   }
@@ -723,12 +712,13 @@ async function onAction(e){
     if(!name || !reg || !approve){ formErr = "Vui lòng nhập đủ tên lớp, mã đăng ký và mã duyệt."; render(); return; }
     if(reg === approve){ formErr = "Mã đăng ký và mã duyệt phải khác nhau."; render(); return; }
     if(DATA.classes.some(c=>c.name.toLowerCase()===name.toLowerCase())){ formErr = "Lớp này đã tồn tại."; render(); return; }
-    const newClass = { id: uid(), name, regCode: reg, approveCode: approve };
-    const ok = await mutateAndSave(fresh => {
-      if(fresh.classes.some(c=>c.name.toLowerCase()===name.toLowerCase())) return; // tránh trùng nếu vừa có người khác thêm
-      fresh.classes.push(newClass);
-    });
-    if(ok){ toast = { type:"ok", text:"Đã thêm lớp " + name + "." }; }
+    try{
+      await callServerAction("add_class", { name: name, regCode: reg, approveCode: approve });
+      await refreshData();
+      toast = { type:"ok", text:"Đã thêm lớp " + name + "." };
+    }catch(err){
+      formErr = err.message || "Không thêm được lớp. Vui lòng thử lại.";
+    }
     render();
     return;
   }
@@ -773,11 +763,13 @@ async function onAction(e){
     const id = el.getAttribute("data-id");
     const cls = DATA.classes.find(c=>c.id===id);
     if(cls && confirm("Xóa lớp " + cls.name + "? Toàn bộ đăng ký của lớp cũng sẽ bị xóa.")){
-      const ok = await mutateAndSave(fresh => {
-        fresh.classes = fresh.classes.filter(c=>c.id!==id);
-        delete fresh.registrations[id];
-      });
-      if(ok){ toast = { type:"ok", text:"Đã xóa lớp " + cls.name + "." }; }
+      try{
+        await callServerAction("del_class", { classId: id });
+        await refreshData();
+        toast = { type:"ok", text:"Đã xóa lớp " + cls.name + "." };
+      }catch(err){
+        toast = { type:"error", text:"Không xóa được lớp. Vui lòng thử lại." };
+      }
       render();
     }
     return;
