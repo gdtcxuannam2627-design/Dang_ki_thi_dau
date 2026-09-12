@@ -286,10 +286,14 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 async function loadData(){
   try{
     const res = await window.storage.get(STORAGE_KEY, true);
-    DATA = JSON.parse(res.value);
+    const parsed = JSON.parse(res.value);
+    if(!parsed || !Array.isArray(parsed.classes) || typeof parsed.registrations !== "object"){
+      throw new Error("Dữ liệu tải về không hợp lệ");
+    }
+    DATA = parsed;
   }catch(e){
-    DATA = { classes: INITIAL_CLASSES.slice(), registrations: {} };
-    try{ await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true); }catch(e2){}
+    DATA = { classes: [], registrations: {} };
+    toast = { type:"error", text:"Không tải được dữ liệu từ máy chủ. Vui lòng tải lại trang (F5). Nếu vẫn lỗi, liên hệ Tổ GDTC — KHÔNG thao tác thêm để tránh mất dữ liệu." };
   }
   render();
 }
