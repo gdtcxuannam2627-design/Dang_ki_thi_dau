@@ -130,30 +130,24 @@ const STORAGE_KEY = "sportreg_v1_thuduc";
 const ADMIN_CODE = "TOGDTC-50NAM";
 
 // ==== Google Sheets qua Apps Script (thay cho window.storage của Claude) ====
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw_F5Mc_OYydSqH4sfH_xbgEvKWySx8CF3i3d9h1LK_ax60sCEADgviKMYAnIJ6Fvou/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkhyjVwVg8-7YVh4rdU1u4FnhR-6LupuRoE_e3GocKVaPdZwSnukJdsrEsKYjS57ll/exec";
 const SHEETS_TOKEN = "TOGDTC-50NAM"; // phải giống hệt SECRET_TOKEN trong Code.gs
 
 window.storage = {
   async get(key, shared) {
-    const res = await fetch(APPS_SCRIPT_URL, { method: "GET" });
-    if (!res.ok) throw new Error("Không đọc được dữ liệu (HTTP " + res.status + ")");
+    let res;
+    try{
+      res = await fetch(APPS_SCRIPT_URL, { method: "GET" });
+    }catch(networkErr){
+      // Lỗi mạng thật sự (mất kết nối, DNS, CORS...) — KHÔNG được hiểu nhầm là "chưa có dữ liệu"
+      throw new Error("NETWORK_ERROR");
+    }
+    if (!res.ok) throw new Error("NETWORK_ERROR"); // lỗi HTTP từ server — cũng là lỗi tạm thời, không phải "trống"
     const text = await res.text();
     if (!text || text === "{}" || text === "null") {
-      throw new Error("Chưa có dữ liệu");
+      throw new Error("EMPTY_DATA"); // đây mới thật sự là tín hiệu "chưa có dữ liệu"
     }
     return { key, value: text, shared: !!shared };
-  },
-  async set(key, value, shared) {
-    const url = APPS_SCRIPT_URL + "?token=" + encodeURIComponent(SHEETS_TOKEN);
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: value,
-    });
-    if (!res.ok) throw new Error("Không lưu được dữ liệu (HTTP " + res.status + ")");
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "Không lưu được dữ liệu");
-    return { key, value, shared: !!shared };
   },
 };
 
@@ -288,8 +282,24 @@ async function loadData(){
     const res = await window.storage.get(STORAGE_KEY, true);
     DATA = JSON.parse(res.value);
   }catch(e){
-    DATA = { classes: INITIAL_CLASSES.slice(), registrations: {} };
-    try{ await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true); }catch(e2){}
+    if(e.message === "EMPTY_DATA"){
+      // Trường hợp DUY NHẤT được phép khởi tạo: server xác nhận thật sự chưa có dữ liệu.
+      // Việc khởi tạo đi qua action "init_if_empty", được server kiểm tra lại lần nữa
+      // trước khi ghi — nên dù trình duyệt hiểu sai, dữ liệu thật vẫn không bị mất.
+      try{
+        await callServerAction("init_if_empty", { initialClasses: INITIAL_CLASSES });
+        const res2 = await window.storage.get(STORAGE_KEY, true);
+        DATA = JSON.parse(res2.value);
+      }catch(e2){
+        DATA = { classes: [], registrations: {} };
+        toast = { type:"error", text:"Không kết nối được máy chủ dữ liệu. Vui lòng tải lại trang." };
+      }
+    }else{
+      // Lỗi mạng/máy chủ tạm thời: TUYỆT ĐỐI KHÔNG khởi tạo lại hay ghi bất cứ điều gì lên
+      // server. Chỉ báo lỗi và để người dùng tự tải lại trang khi có mạng ổn định.
+      DATA = { classes: [], registrations: {} };
+      toast = { type:"error", text:"Không tải được dữ liệu (mất kết nối tạm thời). Vui lòng tải lại trang." };
+    }
   }
   render();
 }
@@ -301,17 +311,6 @@ async function refreshData(){
     DATA = JSON.parse(res.value);
     return true;
   }catch(e){
-    return false;
-  }
-}
-
-async function saveData(){
-  try{
-    const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), true);
-    if(!res) throw new Error("no result");
-    return true;
-  }catch(e){
-    toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
     return false;
   }
 }
@@ -328,7 +327,7 @@ function render(){
     <img class="logo" src="${LOGO_DATA_URI}" alt="Logo kỷ niệm 50 năm thành lập trường">
     <div>
       <div class="title">Đăng ký thi đấu trực tuyến</div>
-      <div class="sub">Hội thi TDTT THPT Thủ Đức - Chào mừng kỷ niệm 50 năm thành lập trường</div>
+      <div class="sub">Giải Thể thao Học sinh THPT Thủ Đức - Chào mừng kỷ niệm 50 năm thành lập trường</div>
     </div>
   </div>`;
 
