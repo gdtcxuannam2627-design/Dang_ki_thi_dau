@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<title>Đăng ký thi đấu - Hội thi TDTT THPT Thủ Đức</title>
+<title>Đăng ký thi đấu - Giải Thể thao Học sinh THPT Thủ Đức</title>
 <style>
   :root{
     --navy:#1F4E79;
@@ -130,7 +130,7 @@ const STORAGE_KEY = "sportreg_v1_thuduc";
 const ADMIN_CODE = "TOGDTC-50NAM";
 
 // ==== Google Sheets qua Apps Script (thay cho window.storage của Claude) ====
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxp-eyJh2JOapni9DelKHAPYp5-7xo17OnQoQg2vVg4DfCO1ddI8ivOhEvQbcJSHHAr/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw_F5Mc_OYydSqH4sfH_xbgEvKWySx8CF3i3d9h1LK_ax60sCEADgviKMYAnIJ6Fvou/exec";
 const SHEETS_TOKEN = "TOGDTC-50NAM"; // phải giống hệt SECRET_TOKEN trong Code.gs
 
 window.storage = {
@@ -397,22 +397,33 @@ function renderMonitorLogin(){
   </div>`;
 }
 
+function findRegForMon(classId, monId){
+  const regs = classRegs(classId); // đã sắp xếp mới nhất trước
+  return regs.find(r=>r.mon===monId) || null;
+}
+
 function renderMonitorForm(){
   const cls = DATA.classes.find(c=>c.id===session.classId);
   const regs = classRegs(cls.id);
-  const registeredIds = regs.filter(r=>r.status!=="rejected").map(r=>r.mon);
   const locked = isPastDeadline();
 
   const groupsHtml = ndGroups().map(g=>{
     const items = g.items.map(n=>{
-      const taken = registeredIds.includes(n.id);
-      const disabled = taken || locked;
-      return `<div class="mon-item ${disabled?'disabled':''}" ${disabled?'':`data-action="pick-mon" data-mon="${n.id}"`}>
+      const existing = findRegForMon(cls.id, n.id);
+      let label, disabled, extraAttrs = "";
+      if(existing){
+        if(locked){ label = "Đã đăng ký"; disabled = true; }
+        else { label = "Sửa"; disabled = false; extraAttrs = `data-action="pick-mon" data-mon="${n.id}" data-reg="${existing.id}"`; }
+      } else {
+        if(locked){ label = "Hết hạn"; disabled = true; }
+        else { label = "Chọn"; disabled = false; extraAttrs = `data-action="pick-mon" data-mon="${n.id}"`; }
+      }
+      return `<div class="mon-item ${disabled?'disabled':''}" ${disabled?'':extraAttrs}>
         <div>
-          <div class="mname">${esc(n.ten)}</div>
+          <div class="mname">${esc(n.ten)} ${existing ? `<span class="badge ${existing.status}" style="margin-left:6px;">${statusLabel(existing.status)}</span>` : ""}</div>
           ${n.maxNguoi ? `<span class="quota-tag">${n.exact ? "Đăng ký đúng " + n.maxNguoi + " người" : "Tối đa " + n.maxNguoi + " người"}</span>` : ""}
         </div>
-        <div class="meta">${taken ? "Đã đăng ký" : locked ? "Hết hạn" : "Chọn"}</div>
+        <div class="meta">${label}</div>
       </div>`;
     }).join("");
     return `<div class="group-heading">
@@ -428,13 +439,14 @@ function renderMonitorForm(){
       </div>
       <div class="vdv-list">${esc(r.vdvList)}</div>
       <div class="meta">Nộp lúc ${new Date(r.submittedAt).toLocaleString("vi-VN")}${r.gvcnNote ? " · Ghi chú GVCN: " + esc(r.gvcnNote) : ""}</div>
+      ${!locked ? `<div class="row" style="margin-top:8px;"><button class="btn small secondary" data-action="pick-mon" data-mon="${r.mon}" data-reg="${r.id}">Sửa đăng ký</button></div>` : ""}
     </div>`).join("") : `<div class="empty">Lớp chưa có đăng ký nào.</div>`;
 
   return `
   <button class="back" data-action="home">&larr; Quay lại</button>
   <div class="card">
     <h2>Lớp ${esc(cls.name)}</h2>
-    <p class="muted-line">${locked ? "Đã hết hạn đăng ký, không thể nộp thêm nội dung mới." : "Chọn một nội dung chưa đăng ký để nộp danh sách vận động viên. Sau khi nộp, GVCN sẽ là người duyệt."}</p>
+    <p class="muted-line">${locked ? "Đã hết hạn đăng ký, không thể nộp hoặc sửa nội dung nào nữa." : "Chọn một nội dung để nộp đăng ký, hoặc bấm \"Sửa\" trên nội dung đã đăng ký để chỉnh sửa (đăng ký đã duyệt nếu sửa sẽ chuyển về chờ duyệt lại)."}</p>
     ${groupsHtml}
   </div>
   <div class="card">
@@ -444,20 +456,26 @@ function renderMonitorForm(){
   <div id="mon-form-slot"></div>`;
 }
 
-function renderMonForm(monId){
+function renderMonForm(monId, regId){
   const n = ndInfo(monId);
+  let existing = null;
+  if(regId){
+    existing = classRegs(session.classId).find(r=>r.id===regId) || null;
+  }
+  const isEdit = !!existing;
   return `
   <div class="card" id="mon-form-card">
-    <h3>Đăng ký: ${esc(n.monGroup)} - ${esc(n.ten)}</h3>
+    <h3>${isEdit ? "Sửa đăng ký" : "Đăng ký"}: ${esc(n.monGroup)} - ${esc(n.ten)}</h3>
+    ${isEdit ? `<p class="hint">Đăng ký hiện đang ở trạng thái "${statusLabel(existing.status)}".${existing.status==="approved" ? " Nếu lưu thay đổi, đăng ký sẽ chuyển về trạng thái \"Chờ GVCN duyệt\" và cần GVCN duyệt lại." : ""}</p>` : ""}
     ${n.maxNguoi ? `<p class="hint">${n.exact ? "Số lượng đăng ký: đúng " + n.maxNguoi + " người." : "Số lượng đăng ký: tối đa " + n.maxNguoi + " người."} ${n.note || ""}</p>` : (n.note ? `<p class="hint">${esc(n.note)}</p>` : "")}
     <label for="mn-vdv">Danh sách vận động viên (mỗi người một dòng, ghi rõ họ tên)</label>
-    <textarea id="mn-vdv" placeholder="Nguyễn Văn A&#10;Trần Thị B"></textarea>
+    <textarea id="mn-vdv" placeholder="Nguyễn Văn A&#10;Trần Thị B">${isEdit ? esc(existing.vdvList) : ""}</textarea>
     <label for="mn-submitter">Người nộp đăng ký (lớp trưởng)</label>
-    <input type="text" id="mn-submitter" placeholder="Họ tên lớp trưởng">
+    <input type="text" id="mn-submitter" placeholder="Họ tên lớp trưởng" value="${isEdit ? esc(existing.submittedBy || "") : ""}">
     ${formErr ? `<div class="err">${esc(formErr)}</div>` : ""}
-    <p class="hint">Sau khi nộp, đăng ký sẽ ở trạng thái "Chờ GVCN duyệt" và chỉ có giá trị khi GVCN đồng ý.</p>
+    <p class="hint">${isEdit ? "Sau khi lưu, đăng ký sẽ ở trạng thái \"Chờ GVCN duyệt\" (nếu có thay đổi so với trước)." : "Sau khi nộp, đăng ký sẽ ở trạng thái \"Chờ GVCN duyệt\" và chỉ có giá trị khi GVCN đồng ý."}</p>
     <div class="row" style="margin-top:8px;">
-      <button class="btn" data-action="submit-reg" data-mon="${monId}">Nộp đăng ký</button>
+      <button class="btn" data-action="submit-reg" data-mon="${monId}" ${isEdit ? `data-reg="${existing.id}"` : ""}>${isEdit ? "Lưu thay đổi" : "Nộp đăng ký"}</button>
       <button class="btn secondary" data-action="cancel-mon">Hủy</button>
     </div>
   </div>`;
@@ -630,7 +648,8 @@ async function onAction(e){
   if(action==="pick-mon"){
     if(isPastDeadline()){ toast = { type:"error", text:"Đã hết hạn đăng ký (hạn chót " + deadlineText() + ")." }; render(); return; }
     const monId = el.getAttribute("data-mon");
-    document.getElementById("mon-form-slot").innerHTML = renderMonForm(monId);
+    const regId = el.getAttribute("data-reg") || null;
+    document.getElementById("mon-form-slot").innerHTML = renderMonForm(monId, regId);
     document.querySelectorAll("#mon-form-slot [data-action]").forEach(x=>x.addEventListener("click", onAction));
     document.getElementById("mon-form-card").scrollIntoView({behavior:"smooth", block:"center"});
     return;
@@ -643,13 +662,14 @@ async function onAction(e){
 
   if(action==="submit-reg"){
     const monId = el.getAttribute("data-mon");
+    const regId = el.getAttribute("data-reg") || null;
     const n = ndInfo(monId);
     const vdvRaw = document.getElementById("mn-vdv").value;
     const submitter = document.getElementById("mn-submitter").value.trim();
     const vdv = vdvRaw.trim();
     const lines = vdvRaw.split("\n").map(s=>s.trim()).filter(Boolean);
     const rerenderMonForm = () => {
-      document.getElementById("mon-form-slot").innerHTML = renderMonForm(monId);
+      document.getElementById("mon-form-slot").innerHTML = renderMonForm(monId, regId);
       document.querySelectorAll("#mon-form-slot [data-action]").forEach(x=>x.addEventListener("click", onAction));
     };
     if(isPastDeadline()){ formErr = "Đã hết hạn đăng ký (hạn chót " + deadlineText() + ")."; rerenderMonForm(); return; }
@@ -660,9 +680,14 @@ async function onAction(e){
     }
     el.disabled = true; el.textContent = "Đang lưu...";
     try{
-      await callServerAction("submit_reg", { classId: session.classId, mon: monId, vdvList: vdv, submittedBy: submitter });
+      if(regId){
+        await callServerAction("update_reg", { classId: session.classId, regId: regId, vdvList: vdv, submittedBy: submitter });
+        toast = { type:"ok", text:"Đã lưu thay đổi. Đăng ký đang ở trạng thái chờ GVCN duyệt." };
+      }else{
+        await callServerAction("submit_reg", { classId: session.classId, mon: monId, vdvList: vdv, submittedBy: submitter });
+        toast = { type:"ok", text:"Đã nộp đăng ký. Đang chờ GVCN duyệt." };
+      }
       await refreshData();
-      toast = { type:"ok", text:"Đã nộp đăng ký. Đang chờ GVCN duyệt." };
     }catch(err){
       toast = { type:"error", text:"Không lưu được dữ liệu. Vui lòng thử lại." };
     }
